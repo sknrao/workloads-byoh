@@ -1,0 +1,277 @@
+# PackageVariant Resources for SD-Core UPF
+# These create site-specific NAD packages from the upstream blueprint
+
+---
+# SD-Core UPF PackageVariant for Edge Site 1
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: upf-edge-site-1
+  namespace: default
+  labels:
+    nephio.org/site: edge-site-1
+    nephio.org/network-function: upf
+    nephio.org/vendor: sd-core
+spec:
+  # Upstream blueprint package
+  upstream:
+    repo: blueprints
+    package: upf-blueprint
+    revision: main
+  
+  # Downstream target repository
+  downstream:
+    repo: edge-site-1
+    package: upf-edge-site-1
+  
+  # Adoptionpolicy determines if existing resources should be adopted
+  adoptionPolicy: adoptExisting
+  
+  # Deletion policy determines what happens when PackageVariant is deleted
+  deletionPolicy: delete
+  
+  # Injectors provide cluster-specific configuration
+  injectors:
+  # Inject WorkloadCluster resource with cluster-specific details
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-site-1
+  
+  # Inject cluster-specific network configuration if available
+  - name: network-config
+    kind: NetworkConfig
+    resourceName: edge-site-1
+    optional: true
+  
+  # Pipeline mutations to apply during package instantiation
+  pipeline:
+    mutators:
+    # Set site-specific labels
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: edge-site-1
+        nephio.org/region: us-west
+    
+    # Apply site-specific setters
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: edge-site-1
+        cluster-name: edge-site-1
+
+---
+# SD-Core UPF PackageVariant for Edge Site 2
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: upf-edge-site-2
+  namespace: default
+  labels:
+    nephio.org/site: edge-site-2
+    nephio.org/network-function: upf
+    nephio.org/vendor: sd-core
+spec:
+  upstream:
+    repo: blueprints
+    package: upf-blueprint
+    revision: main
+  
+  downstream:
+    repo: edge-site-2
+    package: upf-edge-site-2
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-site-2
+  
+  - name: network-config
+    kind: NetworkConfig
+    resourceName: edge-site-2
+    optional: true
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: edge-site-2
+        nephio.org/region: us-east
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: edge-site-2
+        cluster-name: edge-site-2
+
+---
+# SD-Core UPF PackageVariant for Regional Site
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: upf-regional-site
+  namespace: default
+  labels:
+    nephio.org/site: regional-site
+    nephio.org/network-function: upf
+    nephio.org/vendor: sd-core
+    nephio.org/deployment-type: regional
+spec:
+  upstream:
+    repo: blueprints
+    package: upf-blueprint
+    revision: main
+  
+  downstream:
+    repo: regional-site
+    package: upf-regional-site
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: regional-site
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: regional-site
+        nephio.org/region: us-central
+        nephio.org/deployment-type: regional
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: regional-site
+        cluster-name: regional-site
+
+---
+# SD-Core UPF PackageVariant Template
+# This can be used as a template for creating new site-specific variants
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: upf-SITE_NAME
+  namespace: default
+  labels:
+    nephio.org/site: SITE_NAME
+    nephio.org/network-function: upf
+    nephio.org/vendor: sd-core
+spec:
+  upstream:
+    repo: blueprints
+    package: upf-blueprint
+    revision: main
+  
+  downstream:
+    repo: SITE_NAME
+    package: upf-SITE_NAME
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: SITE_NAME
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: SITE_NAME
+        nephio.org/region: REGION_NAME
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: SITE_NAME
+        cluster-name: SITE_NAME
+
+---
+# WorkloadCluster Resources (to be created before PackageVariants)
+# These provide cluster-specific configuration that gets injected
+
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: edge-site-1
+  namespace: default
+  labels:
+    nephio.org/site: edge-site-1
+    nephio.org/region: us-west
+spec:
+  clusterName: edge-site-1
+  cnis:
+  - macvlan
+  - sriov
+  masterInterface: ens3
+
+---
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: edge-site-2
+  namespace: default
+  labels:
+    nephio.org/site: edge-site-2
+    nephio.org/region: us-east
+spec:
+  clusterName: edge-site-2
+  cnis:
+  - macvlan
+  masterInterface: ens3
+
+---
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: regional-site
+  namespace: default
+  labels:
+    nephio.org/site: regional-site
+    nephio.org/region: us-central
+spec:
+  clusterName: regional-site
+  cnis:
+  - macvlan
+  - sriov
+  masterInterface: bond0
+
+---
+# Optional: NetworkConfig for site-specific network parameters
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkConfig
+metadata:
+  name: edge-site-1
+  namespace: default
+spec:
+  interfaces:
+  - name: access
+    physicalInterface: ens3
+    vlan: 100
+  - name: core
+    physicalInterface: ens4
+    vlan: 200
+  - name: internal
+    physicalInterface: ens3
+    vlan: 300
+
+---
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkConfig
+metadata:
+  name: edge-site-2
+  namespace: default
+spec:
+  interfaces:
+  - name: access
+    physicalInterface: ens3
+    vlan: 100
+  - name: core
+    physicalInterface: ens3
+    vlan: 200
+  - name: internal
+    physicalInterface: ens3
+    vlan: 300

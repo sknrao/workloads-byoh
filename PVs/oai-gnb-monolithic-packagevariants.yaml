@@ -1,0 +1,277 @@
+# PackageVariant Resources for OAI gNB Monolithic
+# These create site-specific NAD packages from the upstream blueprint
+
+---
+# OAI gNB Monolithic PackageVariant for Edge Site 1
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: gnb-monolithic-edge-site-1
+  namespace: default
+  labels:
+    nephio.org/site: edge-site-1
+    nephio.org/network-function: gnb
+    nephio.org/vendor: oai
+    nephio.org/deployment-type: monolithic
+spec:
+  # Upstream blueprint package
+  upstream:
+    repo: blueprints
+    package: gnb-monolithic-blueprint
+    revision: main
+  
+  # Downstream target repository
+  downstream:
+    repo: edge-site-1
+    package: gnb-monolithic-edge-site-1
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  # Injectors provide cluster-specific configuration
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-site-1
+  
+  - name: network-config
+    kind: NetworkConfig
+    resourceName: edge-site-1
+    optional: true
+  
+  pipeline:
+    mutators:
+    # Set site-specific labels
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: edge-site-1
+        nephio.org/region: us-west
+        nephio.org/deployment-type: monolithic
+    
+    # Apply site-specific setters
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: edge-site-1
+        cluster-name: edge-site-1
+        deployment-type: monolithic
+
+---
+# OAI gNB Monolithic PackageVariant for Edge Site 2
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: gnb-monolithic-edge-site-2
+  namespace: default
+  labels:
+    nephio.org/site: edge-site-2
+    nephio.org/network-function: gnb
+    nephio.org/vendor: oai
+    nephio.org/deployment-type: monolithic
+spec:
+  upstream:
+    repo: blueprints
+    package: gnb-monolithic-blueprint
+    revision: main
+  
+  downstream:
+    repo: edge-site-2
+    package: gnb-monolithic-edge-site-2
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-site-2
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: edge-site-2
+        nephio.org/region: us-east
+        nephio.org/deployment-type: monolithic
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: edge-site-2
+        cluster-name: edge-site-2
+        deployment-type: monolithic
+
+---
+# OAI gNB Monolithic with USRP for Lab Environment
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: gnb-monolithic-lab-usrp
+  namespace: default
+  labels:
+    nephio.org/site: lab-site
+    nephio.org/network-function: gnb
+    nephio.org/vendor: oai
+    nephio.org/deployment-type: monolithic
+    nephio.org/radio: usrp
+spec:
+  upstream:
+    repo: blueprints
+    package: gnb-monolithic-blueprint
+    revision: main
+  
+  downstream:
+    repo: lab-site
+    package: gnb-monolithic-lab-usrp
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: lab-site
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: lab-site
+        nephio.org/environment: lab
+        nephio.org/radio: usrp
+        nephio.org/deployment-type: monolithic
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: lab-site
+        cluster-name: lab-site
+        enable-ru-interface: "true"
+
+---
+# OAI gNB Monolithic Template
+# This can be used as a template for creating new site-specific variants
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: gnb-monolithic-SITE_NAME
+  namespace: default
+  labels:
+    nephio.org/site: SITE_NAME
+    nephio.org/network-function: gnb
+    nephio.org/vendor: oai
+    nephio.org/deployment-type: monolithic
+spec:
+  upstream:
+    repo: blueprints
+    package: gnb-monolithic-blueprint
+    revision: main
+  
+  downstream:
+    repo: SITE_NAME
+    package: gnb-monolithic-SITE_NAME
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: SITE_NAME
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: SITE_NAME
+        nephio.org/region: REGION_NAME
+        nephio.org/deployment-type: monolithic
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: SITE_NAME
+        cluster-name: SITE_NAME
+
+---
+# WorkloadCluster Resources for OAI gNB deployments
+
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: edge-site-1
+  namespace: default
+  labels:
+    nephio.org/site: edge-site-1
+    nephio.org/region: us-west
+spec:
+  clusterName: edge-site-1
+  cnis:
+  - macvlan
+  - sriov
+  masterInterface: ens3
+
+---
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: edge-site-2
+  namespace: default
+  labels:
+    nephio.org/site: edge-site-2
+    nephio.org/region: us-east
+spec:
+  clusterName: edge-site-2
+  cnis:
+  - macvlan
+  masterInterface: ens3
+
+---
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: lab-site
+  namespace: default
+  labels:
+    nephio.org/site: lab-site
+    nephio.org/environment: lab
+spec:
+  clusterName: lab-site
+  cnis:
+  - macvlan
+  - sriov
+  masterInterface: ens3
+
+---
+# Optional: NetworkConfig for site-specific network parameters
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkConfig
+metadata:
+  name: edge-site-1
+  namespace: default
+spec:
+  interfaces:
+  - name: n2
+    physicalInterface: ens3
+    vlan: 102
+  - name: n3
+    physicalInterface: ens3
+    vlan: 103
+  - name: ru
+    physicalInterface: ens4
+    vlan: 206
+    mtu: 9000
+
+---
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkConfig
+metadata:
+  name: lab-site
+  namespace: default
+spec:
+  interfaces:
+  - name: n2
+    physicalInterface: ens3
+    vlan: 102
+  - name: n3
+    physicalInterface: ens3
+    vlan: 103
+  - name: ru
+    physicalInterface: ens4
+    mtu: 9000

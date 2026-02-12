@@ -1,0 +1,499 @@
+# PackageVariant Resources for OAI gNB Split CU/DU
+# Separate PackageVariants for CU and DU components
+
+################################################################################
+# CU (Central Unit) PackageVariants
+################################################################################
+
+---
+# OAI CU PackageVariant for Regional Site (CU typically at regional/core)
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: cu-regional-site
+  namespace: default
+  labels:
+    nephio.org/site: regional-site
+    nephio.org/network-function: cu
+    nephio.org/vendor: oai
+    nephio.org/deployment-type: split
+    nephio.org/component: central-unit
+spec:
+  upstream:
+    repo: blueprints
+    package: cu-blueprint
+    revision: main
+  
+  downstream:
+    repo: regional-site
+    package: cu-regional-site
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: regional-site
+  
+  - name: network-config
+    kind: NetworkConfig
+    resourceName: regional-site
+    optional: true
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: regional-site
+        nephio.org/region: us-central
+        nephio.org/deployment-type: split
+        nephio.org/component: central-unit
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: regional-site
+        cluster-name: regional-site
+        component: cu
+
+---
+# OAI CU PackageVariant for Cloud Deployment
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: cu-cloud-site
+  namespace: default
+  labels:
+    nephio.org/site: cloud-site
+    nephio.org/network-function: cu
+    nephio.org/vendor: oai
+    nephio.org/deployment-type: split
+    nephio.org/component: central-unit
+    nephio.org/location: cloud
+spec:
+  upstream:
+    repo: blueprints
+    package: cu-blueprint
+    revision: main
+  
+  downstream:
+    repo: cloud-site
+    package: cu-cloud-site
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: cloud-site
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: cloud-site
+        nephio.org/location: cloud
+        nephio.org/deployment-type: split
+        nephio.org/component: central-unit
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: cloud-site
+        cluster-name: cloud-site
+        component: cu
+
+---
+# OAI CU Template
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: cu-SITE_NAME
+  namespace: default
+  labels:
+    nephio.org/site: SITE_NAME
+    nephio.org/network-function: cu
+    nephio.org/vendor: oai
+    nephio.org/deployment-type: split
+    nephio.org/component: central-unit
+spec:
+  upstream:
+    repo: blueprints
+    package: cu-blueprint
+    revision: main
+  
+  downstream:
+    repo: SITE_NAME
+    package: cu-SITE_NAME
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: SITE_NAME
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: SITE_NAME
+        nephio.org/region: REGION_NAME
+        nephio.org/component: central-unit
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: SITE_NAME
+        cluster-name: SITE_NAME
+        component: cu
+
+################################################################################
+# DU (Distributed Unit) PackageVariants
+################################################################################
+
+---
+# OAI DU PackageVariant for Edge Site 1
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: du-edge-site-1
+  namespace: default
+  labels:
+    nephio.org/site: edge-site-1
+    nephio.org/network-function: du
+    nephio.org/vendor: oai
+    nephio.org/deployment-type: split
+    nephio.org/component: distributed-unit
+spec:
+  upstream:
+    repo: blueprints
+    package: du-blueprint
+    revision: main
+  
+  downstream:
+    repo: edge-site-1
+    package: du-edge-site-1
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-site-1
+  
+  - name: network-config
+    kind: NetworkConfig
+    resourceName: edge-site-1
+    optional: true
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: edge-site-1
+        nephio.org/region: us-west
+        nephio.org/deployment-type: split
+        nephio.org/component: distributed-unit
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: edge-site-1
+        cluster-name: edge-site-1
+        component: du
+        cu-site: regional-site
+
+---
+# OAI DU PackageVariant for Edge Site 2
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: du-edge-site-2
+  namespace: default
+  labels:
+    nephio.org/site: edge-site-2
+    nephio.org/network-function: du
+    nephio.org/vendor: oai
+    nephio.org/deployment-type: split
+    nephio.org/component: distributed-unit
+spec:
+  upstream:
+    repo: blueprints
+    package: du-blueprint
+    revision: main
+  
+  downstream:
+    repo: edge-site-2
+    package: du-edge-site-2
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-site-2
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: edge-site-2
+        nephio.org/region: us-east
+        nephio.org/deployment-type: split
+        nephio.org/component: distributed-unit
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: edge-site-2
+        cluster-name: edge-site-2
+        component: du
+        cu-site: regional-site
+
+---
+# OAI DU with USRP for Lab
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: du-lab-usrp
+  namespace: default
+  labels:
+    nephio.org/site: lab-site
+    nephio.org/network-function: du
+    nephio.org/vendor: oai
+    nephio.org/deployment-type: split
+    nephio.org/component: distributed-unit
+    nephio.org/radio: usrp
+spec:
+  upstream:
+    repo: blueprints
+    package: du-blueprint
+    revision: main
+  
+  downstream:
+    repo: lab-site
+    package: du-lab-usrp
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: lab-site
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: lab-site
+        nephio.org/environment: lab
+        nephio.org/radio: usrp
+        nephio.org/deployment-type: split
+        nephio.org/component: distributed-unit
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: lab-site
+        cluster-name: lab-site
+        component: du
+        enable-ru-interface: "true"
+
+---
+# OAI DU Template
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: du-SITE_NAME
+  namespace: default
+  labels:
+    nephio.org/site: SITE_NAME
+    nephio.org/network-function: du
+    nephio.org/vendor: oai
+    nephio.org/deployment-type: split
+    nephio.org/component: distributed-unit
+spec:
+  upstream:
+    repo: blueprints
+    package: du-blueprint
+    revision: main
+  
+  downstream:
+    repo: SITE_NAME
+    package: du-SITE_NAME
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: SITE_NAME
+  
+  pipeline:
+    mutators:
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: SITE_NAME
+        nephio.org/region: REGION_NAME
+        nephio.org/component: distributed-unit
+    
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: SITE_NAME
+        cluster-name: SITE_NAME
+        component: du
+
+################################################################################
+# WorkloadCluster Resources for Split Architecture
+################################################################################
+
+---
+# Regional Site WorkloadCluster (for CU)
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: regional-site
+  namespace: default
+  labels:
+    nephio.org/site: regional-site
+    nephio.org/region: us-central
+    nephio.org/location: regional
+spec:
+  clusterName: regional-site
+  cnis:
+  - macvlan
+  - sriov
+  masterInterface: bond0
+
+---
+# Cloud Site WorkloadCluster (for CU)
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: cloud-site
+  namespace: default
+  labels:
+    nephio.org/site: cloud-site
+    nephio.org/location: cloud
+spec:
+  clusterName: cloud-site
+  cnis:
+  - macvlan
+  masterInterface: eth0
+
+---
+# Edge Site 1 WorkloadCluster (for DU)
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: edge-site-1
+  namespace: default
+  labels:
+    nephio.org/site: edge-site-1
+    nephio.org/region: us-west
+    nephio.org/location: edge
+spec:
+  clusterName: edge-site-1
+  cnis:
+  - macvlan
+  - sriov
+  masterInterface: ens3
+
+---
+# Edge Site 2 WorkloadCluster (for DU)
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: edge-site-2
+  namespace: default
+  labels:
+    nephio.org/site: edge-site-2
+    nephio.org/region: us-east
+    nephio.org/location: edge
+spec:
+  clusterName: edge-site-2
+  cnis:
+  - macvlan
+  masterInterface: ens3
+
+---
+# Lab Site WorkloadCluster (for DU with USRP)
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: lab-site
+  namespace: default
+  labels:
+    nephio.org/site: lab-site
+    nephio.org/environment: lab
+    nephio.org/location: lab
+spec:
+  clusterName: lab-site
+  cnis:
+  - macvlan
+  - sriov
+  masterInterface: ens3
+
+################################################################################
+# Optional: NetworkConfig for Split Architecture
+################################################################################
+
+---
+# CU NetworkConfig
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkConfig
+metadata:
+  name: regional-site
+  namespace: default
+spec:
+  interfaces:
+  - name: n2
+    physicalInterface: bond0
+    vlan: 102
+  - name: f1c
+    physicalInterface: bond0
+    vlan: 205
+  - name: e1
+    physicalInterface: bond0
+    vlan: 201
+
+---
+# DU NetworkConfig - Edge Site 1
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkConfig
+metadata:
+  name: edge-site-1
+  namespace: default
+spec:
+  interfaces:
+  - name: f1
+    physicalInterface: ens3
+    vlan: 205
+  - name: n3
+    physicalInterface: ens3
+    vlan: 103
+  - name: ru
+    physicalInterface: ens4
+    vlan: 206
+    mtu: 9000
+
+---
+# DU NetworkConfig - Lab Site
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkConfig
+metadata:
+  name: lab-site
+  namespace: default
+spec:
+  interfaces:
+  - name: f1
+    physicalInterface: ens3
+    vlan: 205
+  - name: n3
+    physicalInterface: ens3
+    vlan: 103
+  - name: ru
+    physicalInterface: ens4
+    mtu: 9000
