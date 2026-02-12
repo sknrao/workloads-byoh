@@ -1,0 +1,6 @@
+I want to understand the SD-Core helm charts here- https://github.com/omec-project/sdcore-helm-charts - mainly the NetworkAttachmentDefinitions  for additional interfaces. I have created a cluster using kubeadm and have integrated with Nephio (as in with upstream and downstream repos). Now I want to create NADs that can match the expectations from SD-Core.  Can you help?
+
+
+Now, if you look at the NAD-function in nephio (https://github.com/nephio-project/nephio/blob/main/krm-functions/nad-fn/fn/function.go) it expects interface (apiVersion: req.nephio.org/v1alpha1, kind: Interface) , ipclaim (apiVersion: ipam.resource.nephio.org/v1alpha1, kind: IPClaim),  along with workload-cluster and package-context, blueprints and corresponding package variants, to generate NetworkAttachmentDefinitions. Can you guide me how these interface and ipclaim should look to match the SD-Core helm charts expetations?
+
+In the Kptfile that you have generated, do we need to have anything else? status/conditions or readiness gates for each interface group ?

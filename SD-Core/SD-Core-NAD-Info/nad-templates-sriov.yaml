@@ -1,0 +1,140 @@
+---
+# SR-IOV NetworkAttachmentDefinition for UPF Access Network (N3)
+# High-performance interface using SR-IOV for RAN connectivity
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: upf-access-n3-sriov
+  namespace: omec
+  labels:
+    app: sdcore
+    component: upf
+    interface: access
+    performance: high
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "sriov",
+      "vlan": 100,
+      "vlanQoS": 0,
+      "ipam": {
+        "type": "static",
+        "addresses": [
+          {
+            "address": "REPLACE_WITH_UPF_ACCESS_IP/24",
+            "gateway": "REPLACE_WITH_ACCESS_GATEWAY"
+          }
+        ],
+        "routes": [
+          {
+            "dst": "0.0.0.0/0"
+          }
+        ]
+      }
+    }
+
+---
+# SR-IOV NetworkAttachmentDefinition for UPF Core Network (N6)
+# High-performance interface using SR-IOV for Data Network
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: upf-core-n6-sriov
+  namespace: omec
+  labels:
+    app: sdcore
+    component: upf
+    interface: core
+    performance: high
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "sriov",
+      "vlan": 200,
+      "vlanQoS": 0,
+      "ipam": {
+        "type": "static",
+        "addresses": [
+          {
+            "address": "REPLACE_WITH_UPF_CORE_IP/24",
+            "gateway": "REPLACE_WITH_CORE_GATEWAY"
+          }
+        ],
+        "routes": [
+          {
+            "dst": "0.0.0.0/0"
+          }
+        ]
+      }
+    }
+
+---
+# SR-IOV NetworkAttachmentDefinition using DPDK/VFIO
+# For DPDK-enabled UPF deployments
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: upf-access-dpdk
+  namespace: omec
+  labels:
+    app: sdcore
+    component: upf
+    interface: access
+    performance: dpdk
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "vfioveth",
+      "vlan": 100,
+      "ipam": {
+        "type": "static",
+        "addresses": [
+          {
+            "address": "REPLACE_WITH_UPF_ACCESS_IP/24",
+            "gateway": "REPLACE_WITH_ACCESS_GATEWAY"
+          }
+        ]
+      }
+    }
+
+---
+# SriovNetworkNodePolicy for configuring SR-IOV on nodes
+# This creates VFs and makes them available to Kubernetes
+apiVersion: sriovnetwork.openshift.io/v1
+kind: SriovNetworkNodePolicy
+metadata:
+  name: policy-access-network
+  namespace: sriov-network-operator
+spec:
+  nodeSelector:
+    feature.node.kubernetes.io/network-sriov.capable: "true"
+  resourceName: intel_sriov_access
+  priority: 10
+  numVfs: 8
+  nicSelector:
+    pfNames:
+      - "REPLACE_WITH_PF_NAME#0-3"  # e.g., "ens3#0-3"
+  deviceType: netdevice
+  isRdma: false
+
+---
+# SriovNetworkNodePolicy for core network
+apiVersion: sriovnetwork.openshift.io/v1
+kind: SriovNetworkNodePolicy
+metadata:
+  name: policy-core-network
+  namespace: sriov-network-operator
+spec:
+  nodeSelector:
+    feature.node.kubernetes.io/network-sriov.capable: "true"
+  resourceName: intel_sriov_core
+  priority: 10
+  numVfs: 8
+  nicSelector:
+    pfNames:
+      - "REPLACE_WITH_PF_NAME#0-3"  # e.g., "ens4#0-3"
+  deviceType: netdevice
+  isRdma: false

@@ -1,0 +1,98 @@
+---
+# NetworkAttachmentDefinition for UPF Access Network (N3 interface)
+# This network connects UPF to RAN (gNB/eNB)
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: upf-access-n3
+  namespace: omec
+  labels:
+    app: sdcore
+    component: upf
+    interface: access
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "macvlan",
+      "master": "REPLACE_WITH_YOUR_INTERFACE",
+      "mode": "bridge",
+      "ipam": {
+        "type": "static",
+        "addresses": [
+          {
+            "address": "REPLACE_WITH_UPF_ACCESS_IP/24",
+            "gateway": "REPLACE_WITH_ACCESS_GATEWAY"
+          }
+        ],
+        "routes": [
+          {
+            "dst": "0.0.0.0/0"
+          }
+        ]
+      }
+    }
+
+---
+# NetworkAttachmentDefinition for UPF Core Network (N6 interface)
+# This network connects UPF to Data Network/Internet
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: upf-core-n6
+  namespace: omec
+  labels:
+    app: sdcore
+    component: upf
+    interface: core
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "macvlan",
+      "master": "REPLACE_WITH_YOUR_INTERFACE",
+      "mode": "bridge",
+      "ipam": {
+        "type": "static",
+        "addresses": [
+          {
+            "address": "REPLACE_WITH_UPF_CORE_IP/24",
+            "gateway": "REPLACE_WITH_CORE_GATEWAY"
+          }
+        ],
+        "routes": [
+          {
+            "dst": "0.0.0.0/0"
+          }
+        ]
+      }
+    }
+
+---
+# NetworkAttachmentDefinition for ENB/RAN subnet routing
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: upf-enb-subnet
+  namespace: omec
+  labels:
+    app: sdcore
+    component: upf
+    interface: enb
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "macvlan",
+      "master": "REPLACE_WITH_YOUR_INTERFACE",
+      "mode": "bridge",
+      "ipam": {
+        "type": "static",
+        "addresses": [
+          {
+            "address": "REPLACE_WITH_ENB_SUBNET_IP/24",
+            "gateway": "REPLACE_WITH_ENB_GATEWAY"
+          }
+        ]
+      }
+    }
