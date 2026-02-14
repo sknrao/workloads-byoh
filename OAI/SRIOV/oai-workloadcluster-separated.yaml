@@ -1,0 +1,150 @@
+# Updated WorkloadCluster - Separate N2 and N3 with SR-IOV
+# Apply to Management Cluster
+
+---
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: edge-cluster-1
+  namespace: default
+  labels:
+    nephio.org/site: edge-cluster-1
+    nephio.org/region: us-west
+    nephio.org/cluster-type: edge
+    nephio.org/deployment: single-node
+    nephio.org/sriov-enabled: "true"
+spec:
+  # Cluster name as registered in kubeconfig
+  clusterName: edge-cluster-1
+  
+  # CNI types available
+  cnis:
+  - sriov        # For high-performance N3
+  - macvlan      # For standard interfaces (N2, N4, N6, RU)
+  
+  # Default master interface for MacVLAN
+  # Used by N2, N4, N6
+  masterInterface: ens3
+  
+  # Network interfaces configuration
+  networkInterfaces:
+  
+  # ens3: Standard NIC for control plane and low-bandwidth interfaces
+  - name: ens3
+    purpose: control-and-management
+    description: "Standard NIC for N2, N4, N6 interfaces"
+    cni: macvlan
+    speed: 10G
+    interfaces:
+    - name: n2
+      vlan: 102
+      purpose: "Control plane to AMF"
+    - name: n4
+      vlan: 104
+      purpose: "PFCP to SMF"
+    - name: n6
+      vlan: 106
+      purpose: "Data network/Internet"
+  
+  # ens4: SR-IOV NIC for high-performance user plane (N3)
+  - name: ens4
+    purpose: userplane
+    description: "SR-IOV NIC for N3 user plane (gNB ↔ UPF)"
+    cni: sriov
+    sriovEnabled: true
+    speed: 25G
+    interfaces:
+    - name: n3
+      purpose: "High-performance user plane"
+      vfCount: 4
+      vfDriver: iavf  # Intel VF driver (use mlx5_core for Mellanox)
+  
+  # ens5: Optional NIC for RU/USRP
+  - name: ens5
+    purpose: fronthaul
+    description: "Optional NIC for RU/USRP connection"
+    cni: macvlan
+    speed: 1G
+    mtu: 9000
+    interfaces:
+    - name: ru
+      purpose: "Fronthaul to USRP/Radio Unit"
+  
+  # SR-IOV specific configuration
+  sriovConfig:
+    enabled: true
+    devices:
+    - physicalFunction: ens4
+      numVirtualFunctions: 4
+      vfDriver: iavf
+      pfDriver: ice  # Intel E810 driver
+      deviceID: "1592"  # Intel E810 device ID
+      vendorID: "8086"  # Intel vendor ID
+      # Alternative for Mellanox ConnectX:
+      # vfDriver: mlx5_core
+      # pfDriver: mlx5_core
+      # deviceID: "101e"  # ConnectX-6
+      # vendorID: "15b3"  # Mellanox/NVIDIA
+
+---
+# Alternative: Minimal WorkloadCluster (if SR-IOV device plugin handles config)
+
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: edge-cluster-1-minimal
+  namespace: default
+  labels:
+    nephio.org/site: edge-cluster-1
+    nephio.org/sriov-enabled: "true"
+spec:
+  clusterName: edge-cluster-1
+  
+  cnis:
+  - sriov
+  - macvlan
+  
+  # Primary master interface for MacVLAN (ens3)
+  masterInterface: ens3
+  
+  # SR-IOV interface (ens4)
+  sriovConfig:
+    enabled: true
+    physicalFunction: ens4
+    numVirtualFunctions: 4
+    vfDriver: iavf
+
+---
+# Alternative: If you want to use ens4 for N3 via MacVLAN instead of SR-IOV
+# (Less performance, but simpler if SR-IOV not working)
+
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: edge-cluster-1-macvlan-fallback
+  namespace: default
+spec:
+  clusterName: edge-cluster-1
+  
+  cnis:
+  - macvlan
+  
+  masterInterface: ens3
+  
+  networkInterfaces:
+  - name: ens3
+    purpose: control
+    description: "For N2, N4, N6"
+    cni: macvlan
+  
+  - name: ens4
+    purpose: userplane
+    description: "For N3 via MacVLAN (fallback if SR-IOV not available)"
+    cni: macvlan
+    comment: "Will use hairpin mode for same-node gNB↔UPF traffic"
+  
+  - name: ens5
+    purpose: fronthaul
+    description: "For RU/USRP"
+    cni: macvlan
+    mtu: 9000

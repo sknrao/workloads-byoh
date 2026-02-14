@@ -1,0 +1,128 @@
+# Updated IPPrefix Resources - Separate N2 and N3 Networks
+# Apply to Management Cluster
+
+---
+# IPPrefix for N2 Interface (Control Plane to AMF)
+# Uses: ens3 via MacVLAN
+apiVersion: ipam.resource.nephio.org/v1alpha1
+kind: IPPrefix
+metadata:
+  name: oai-control-pool
+  namespace: default
+  labels:
+    nephio.org/purpose: control
+    nephio.org/network-type: n2
+    nephio.org/site: edge-cluster-1
+    nephio.org/physical-nic: ens3
+    nephio.org/cni-type: macvlan
+spec:
+  prefix: 10.1.2.0/24
+  networkInstance:
+    name: vpc-control
+  labels:
+    nephio.org/address-family: ipv4
+
+---
+# IPPrefix for N3 Interface (User Plane gNB ↔ UPF)
+# Uses: ens4 via SR-IOV
+apiVersion: ipam.resource.nephio.org/v1alpha1
+kind: IPPrefix
+metadata:
+  name: oai-userplane-pool
+  namespace: default
+  labels:
+    nephio.org/purpose: userplane
+    nephio.org/network-type: n3
+    nephio.org/site: edge-cluster-1
+    nephio.org/physical-nic: ens4
+    nephio.org/cni-type: sriov
+    nephio.org/high-performance: "true"
+spec:
+  prefix: 10.1.3.0/24
+  networkInstance:
+    name: vpc-userplane
+  labels:
+    nephio.org/address-family: ipv4
+
+---
+# IPPrefix for N6 Interface (UPF to Data Network)
+# Uses: ens3 via MacVLAN
+apiVersion: ipam.resource.nephio.org/v1alpha1
+kind: IPPrefix
+metadata:
+  name: oai-datanetwork-pool
+  namespace: default
+  labels:
+    nephio.org/purpose: datanetwork
+    nephio.org/network-type: n6
+    nephio.org/site: edge-cluster-1
+    nephio.org/physical-nic: ens3
+    nephio.org/cni-type: macvlan
+spec:
+  prefix: 192.168.250.0/24
+  networkInstance:
+    name: vpc-internet
+  labels:
+    nephio.org/address-family: ipv4
+
+---
+# IPPrefix for N4 Interface (UPF to SMF)
+# Uses: ens3 via MacVLAN
+apiVersion: ipam.resource.nephio.org/v1alpha1
+kind: IPPrefix
+metadata:
+  name: oai-pfcp-pool
+  namespace: default
+  labels:
+    nephio.org/purpose: pfcp
+    nephio.org/network-type: n4
+    nephio.org/site: edge-cluster-1
+    nephio.org/physical-nic: ens3
+    nephio.org/cni-type: macvlan
+spec:
+  prefix: 10.0.0.0/24
+  networkInstance:
+    name: vpc-internal
+  labels:
+    nephio.org/address-family: ipv4
+
+---
+# IPPrefix for RU Interface (Fronthaul to USRP/Radio Unit)
+# Uses: ens5 via MacVLAN (or ens4 if no separate NIC)
+apiVersion: ipam.resource.nephio.org/v1alpha1
+kind: IPPrefix
+metadata:
+  name: oai-fronthaul-pool
+  namespace: default
+  labels:
+    nephio.org/purpose: fronthaul
+    nephio.org/network-type: ru
+    nephio.org/site: edge-cluster-1
+    nephio.org/physical-nic: ens5
+    nephio.org/cni-type: macvlan
+spec:
+  prefix: 10.2.6.0/24
+  networkInstance:
+    name: vpc-fronthaul
+  labels:
+    nephio.org/address-family: ipv4
+
+---
+# Optional: IPPrefix for F1 Interface (if deploying split CU/DU later)
+apiVersion: ipam.resource.nephio.org/v1alpha1
+kind: IPPrefix
+metadata:
+  name: oai-midhaul-pool
+  namespace: default
+  labels:
+    nephio.org/purpose: midhaul
+    nephio.org/network-type: f1
+    nephio.org/site: edge-cluster-1
+    nephio.org/physical-nic: ens3
+    nephio.org/cni-type: macvlan
+spec:
+  prefix: 10.2.5.0/24
+  networkInstance:
+    name: vpc-midhaul
+  labels:
+    nephio.org/address-family: ipv4

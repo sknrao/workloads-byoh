@@ -1,0 +1,184 @@
+# SD-Core UPF Interface Resources - Separate interfaces
+# N3 on ens4 (SR-IOV), N6 and N4 on ens3 (MacVLAN)
+
+---
+# Interface for N3 (User Plane from gNB)
+# Physical NIC: ens4 via SR-IOV (VF 1)
+apiVersion: req.nephio.org/v1alpha1
+kind: Interface
+metadata:
+  name: n3
+  namespace: upf
+  annotations:
+    config.kubernetes.io/local-config: "true"
+    specializer.nephio.org/owner: req.nephio.org/v1alpha1.NFDeployment.upf
+  labels:
+    nephio.org/interface: n3
+    nephio.org/nf: upf
+    nephio.org/physical-nic: ens4
+    nephio.org/high-performance: "true"
+spec:
+  networkInstance:
+    name: vpc-userplane
+  cniType: sriov        # SR-IOV for high performance
+  attachmentType: vlan
+  # SR-IOV specific
+  sriovSpec:
+    pfName: ens4
+    vfIndex: 1          # UPF will use VF 1 (gNB uses VF 0)
+
+---
+# Interface for N6 (User Plane to Data Network/Internet)
+# Physical NIC: ens3 via MacVLAN
+apiVersion: req.nephio.org/v1alpha1
+kind: Interface
+metadata:
+  name: n6
+  namespace: upf
+  annotations:
+    config.kubernetes.io/local-config: "true"
+    specializer.nephio.org/owner: req.nephio.org/v1alpha1.NFDeployment.upf
+  labels:
+    nephio.org/interface: n6
+    nephio.org/nf: upf
+    nephio.org/physical-nic: ens3
+spec:
+  networkInstance:
+    name: vpc-internet
+  cniType: macvlan
+  attachmentType: vlan
+  vlanID: 106
+
+---
+# Interface for N4 (PFCP to SMF)
+# Physical NIC: ens3 via MacVLAN
+apiVersion: req.nephio.org/v1alpha1
+kind: Interface
+metadata:
+  name: n4
+  namespace: upf
+  annotations:
+    config.kubernetes.io/local-config: "true"
+    specializer.nephio.org/owner: req.nephio.org/v1alpha1.NFDeployment.upf
+  labels:
+    nephio.org/interface: n4
+    nephio.org/nf: upf
+    nephio.org/physical-nic: ens3
+spec:
+  networkInstance:
+    name: vpc-internal
+  cniType: macvlan
+  attachmentType: vlan
+  vlanID: 104
+
+---
+# NetworkInstance for N3 (User Plane - shared with gNB)
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkInstance
+metadata:
+  name: vpc-userplane
+  namespace: upf
+  annotations:
+    config.kubernetes.io/local-config: "true"
+  labels:
+    nephio.org/network: userplane
+    nephio.org/physical-nic: ens4
+    nephio.org/high-performance: "true"
+spec:
+  name: vpc-userplane
+  interfaces:
+  - kind: bridgedomain
+  - kind: interface
+    selector:
+      matchLabels:
+        nephio.org/interface: n3
+  pools:
+  - name: n3-ipv4-pool
+    prefixLength: 24
+
+---
+# NetworkInstance for N6 (Data Network)
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkInstance
+metadata:
+  name: vpc-internet
+  namespace: upf
+  annotations:
+    config.kubernetes.io/local-config: "true"
+  labels:
+    nephio.org/network: internet
+    nephio.org/physical-nic: ens3
+spec:
+  name: vpc-internet
+  interfaces:
+  - kind: bridgedomain
+  - kind: interface
+    selector:
+      matchLabels:
+        nephio.org/interface: n6
+  pools:
+  - name: n6-ipv4-pool
+    prefixLength: 24
+
+---
+# NetworkInstance for N4 (Internal/PFCP)
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkInstance
+metadata:
+  name: vpc-internal
+  namespace: upf
+  annotations:
+    config.kubernetes.io/local-config: "true"
+  labels:
+    nephio.org/network: internal
+    nephio.org/physical-nic: ens3
+spec:
+  name: vpc-internal
+  interfaces:
+  - kind: bridgedomain
+  - kind: interface
+    selector:
+      matchLabels:
+        nephio.org/interface: n4
+  pools:
+  - name: n4-ipv4-pool
+    prefixLength: 24
+
+---
+# Kptfile for UPF package
+apiVersion: kpt.dev/v1
+kind: Kptfile
+metadata:
+  name: upf-package-separated
+  annotations:
+    config.kubernetes.io/local-config: "true"
+info:
+  description: SD-Core UPF with N3 on SR-IOV (ens4) and N6/N4 on MacVLAN (ens3)
+  
+  readinessGates:
+  # WorkloadCluster injection
+  - conditionType: config.injection.WorkloadCluster.workload-cluster
+  
+  # Interface processing
+  - conditionType: req.nephio.org.interface.n3
+  - conditionType: req.nephio.org.interface.n6
+  - conditionType: req.nephio.org.interface.n4
+  
+  # IP allocation
+  - conditionType: ipam.nephio.org.ipclaim.n3
+  - conditionType: ipam.nephio.org.ipclaim.n6
+  - conditionType: ipam.nephio.org.ipclaim.n4
+
+pipeline:
+  mutators:
+  - image: docker.io/nephio/interface-fn:v2.0.0
+    configMap:
+      debug: "true"
+  - image: docker.io/nephio/nad-fn:v2.0.0
+    configMap:
+      debug: "true"
+  
+  validators:
+  - image: gcr.io/kpt-fn/kubeval:v0.3.0
+    configMap:
+      ignore_missing_schemas: "true"

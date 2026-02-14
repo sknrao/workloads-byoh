@@ -1,0 +1,187 @@
+# Updated OAI gNB Interface Resources - Separate N2 and N3
+# N2 on ens3 (MacVLAN), N3 on ens4 (SR-IOV)
+
+---
+# Interface for N2 (Control Plane to AMF)
+# Physical NIC: ens3 via MacVLAN
+apiVersion: req.nephio.org/v1alpha1
+kind: Interface
+metadata:
+  name: n2
+  namespace: oai-ran
+  annotations:
+    config.kubernetes.io/local-config: "true"
+    specializer.nephio.org/owner: req.nephio.org/v1alpha1.NFDeployment.gnb
+  labels:
+    nephio.org/interface: n2
+    nephio.org/nf: gnb
+    nephio.org/deployment-type: monolithic
+    nephio.org/physical-nic: ens3
+spec:
+  networkInstance:
+    name: vpc-control
+  cniType: macvlan
+  attachmentType: vlan
+  vlanID: 102
+
+---
+# Interface for N3 (User Plane to UPF)
+# Physical NIC: ens4 via SR-IOV
+apiVersion: req.nephio.org/v1alpha1
+kind: Interface
+metadata:
+  name: n3
+  namespace: oai-ran
+  annotations:
+    config.kubernetes.io/local-config: "true"
+    specializer.nephio.org/owner: req.nephio.org/v1alpha1.NFDeployment.gnb
+  labels:
+    nephio.org/interface: n3
+    nephio.org/nf: gnb
+    nephio.org/deployment-type: monolithic
+    nephio.org/physical-nic: ens4
+    nephio.org/high-performance: "true"
+spec:
+  networkInstance:
+    name: vpc-userplane
+  cniType: sriov        # Changed from macvlan to sriov
+  attachmentType: vlan
+  # SR-IOV specific
+  sriovSpec:
+    pfName: ens4
+    vfIndex: 0          # This gNB will use VF 0
+
+---
+# Interface for RU (Fronthaul to USRP)
+# Physical NIC: ens5 via MacVLAN
+apiVersion: req.nephio.org/v1alpha1
+kind: Interface
+metadata:
+  name: ru
+  namespace: oai-ran
+  annotations:
+    config.kubernetes.io/local-config: "true"
+    specializer.nephio.org/owner: req.nephio.org/v1alpha1.NFDeployment.gnb
+  labels:
+    nephio.org/interface: ru
+    nephio.org/nf: gnb
+    nephio.org/deployment-type: monolithic
+    nephio.org/physical-nic: ens5
+spec:
+  networkInstance:
+    name: vpc-fronthaul
+  cniType: macvlan
+  attachmentType: vlan
+  mtu: 9000
+
+---
+# NetworkInstance for N2 (Control)
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkInstance
+metadata:
+  name: vpc-control
+  namespace: oai-ran
+  annotations:
+    config.kubernetes.io/local-config: "true"
+  labels:
+    nephio.org/network: control
+    nephio.org/physical-nic: ens3
+spec:
+  name: vpc-control
+  interfaces:
+  - kind: bridgedomain
+  - kind: interface
+    selector:
+      matchLabels:
+        nephio.org/interface: n2
+  pools:
+  - name: n2-ipv4-pool
+    prefixLength: 24
+
+---
+# NetworkInstance for N3 (User Plane)
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkInstance
+metadata:
+  name: vpc-userplane
+  namespace: oai-ran
+  annotations:
+    config.kubernetes.io/local-config: "true"
+  labels:
+    nephio.org/network: userplane
+    nephio.org/physical-nic: ens4
+    nephio.org/high-performance: "true"
+spec:
+  name: vpc-userplane
+  interfaces:
+  - kind: bridgedomain
+  - kind: interface
+    selector:
+      matchLabels:
+        nephio.org/interface: n3
+  pools:
+  - name: n3-ipv4-pool
+    prefixLength: 24
+
+---
+# NetworkInstance for RU (Fronthaul)
+apiVersion: infra.nephio.org/v1alpha1
+kind: NetworkInstance
+metadata:
+  name: vpc-fronthaul
+  namespace: oai-ran
+  annotations:
+    config.kubernetes.io/local-config: "true"
+  labels:
+    nephio.org/network: fronthaul
+    nephio.org/physical-nic: ens5
+spec:
+  name: vpc-fronthaul
+  interfaces:
+  - kind: bridgedomain
+  - kind: interface
+    selector:
+      matchLabels:
+        nephio.org/interface: ru
+  pools:
+  - name: ru-ipv4-pool
+    prefixLength: 24
+
+---
+# Kptfile with readiness gates
+apiVersion: kpt.dev/v1
+kind: Kptfile
+metadata:
+  name: gnb-monolithic-blueprint-separated
+  annotations:
+    config.kubernetes.io/local-config: "true"
+info:
+  description: OAI gNB with separate N2 (MacVLAN on ens3) and N3 (SR-IOV on ens4)
+  
+  readinessGates:
+  # WorkloadCluster injection
+  - conditionType: config.injection.WorkloadCluster.workload-cluster
+  
+  # Interface processing
+  - conditionType: req.nephio.org.interface.n2
+  - conditionType: req.nephio.org.interface.n3
+  - conditionType: req.nephio.org.interface.ru
+  
+  # IP allocation
+  - conditionType: ipam.nephio.org.ipclaim.n2
+  - conditionType: ipam.nephio.org.ipclaim.n3
+  - conditionType: ipam.nephio.org.ipclaim.ru
+
+pipeline:
+  mutators:
+  - image: docker.io/nephio/interface-fn:v2.0.0
+    configMap:
+      debug: "true"
+  - image: docker.io/nephio/nad-fn:v2.0.0
+    configMap:
+      debug: "true"
+  
+  validators:
+  - image: gcr.io/kpt-fn/kubeval:v0.3.0
+    configMap:
+      ignore_missing_schemas: "true"
