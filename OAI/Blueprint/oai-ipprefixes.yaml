@@ -1,0 +1,94 @@
+# IPPrefix Resources for OAI gNB Single-Node Deployment
+# Apply these to the Management Cluster
+
+---
+# IPPrefix for N2 Interface (Control Plane to AMF)
+apiVersion: ipam.resource.nephio.org/v1alpha1
+kind: IPPrefix
+metadata:
+  name: oai-control-pool
+  namespace: default
+  labels:
+    nephio.org/purpose: control
+    nephio.org/network-type: n2
+    nephio.org/site: edge-cluster-1
+spec:
+  prefix: 10.1.2.0/24
+  networkInstance:
+    name: vpc-control
+  labels:
+    nephio.org/address-family: ipv4
+
+---
+# IPPrefix for N3 Interface (User Plane to UPF)
+apiVersion: ipam.resource.nephio.org/v1alpha1
+kind: IPPrefix
+metadata:
+  name: oai-userplane-pool
+  namespace: default
+  labels:
+    nephio.org/purpose: userplane
+    nephio.org/network-type: n3
+    nephio.org/site: edge-cluster-1
+spec:
+  prefix: 10.1.3.0/24
+  networkInstance:
+    name: vpc-userplane
+  labels:
+    nephio.org/address-family: ipv4
+
+---
+# IPPrefix for RU Interface (Fronthaul to USRP/Radio Unit)
+apiVersion: ipam.resource.nephio.org/v1alpha1
+kind: IPPrefix
+metadata:
+  name: oai-fronthaul-pool
+  namespace: default
+  labels:
+    nephio.org/purpose: fronthaul
+    nephio.org/network-type: ru
+    nephio.org/site: edge-cluster-1
+spec:
+  prefix: 10.2.6.0/24
+  networkInstance:
+    name: vpc-fronthaul
+  labels:
+    nephio.org/address-family: ipv4
+
+---
+# Optional: Additional pools for future use or multi-site deployments
+
+# IPPrefix for F1 Interface (if you deploy split CU/DU later)
+apiVersion: ipam.resource.nephio.org/v1alpha1
+kind: IPPrefix
+metadata:
+  name: oai-midhaul-pool
+  namespace: default
+  labels:
+    nephio.org/purpose: midhaul
+    nephio.org/network-type: f1
+    nephio.org/site: edge-cluster-1
+spec:
+  prefix: 10.2.5.0/24
+  networkInstance:
+    name: vpc-midhaul
+  labels:
+    nephio.org/address-family: ipv4
+
+---
+# IPPrefix for E1 Interface (if you deploy split CU-CP/CU-UP later)
+apiVersion: ipam.resource.nephio.org/v1alpha1
+kind: IPPrefix
+metadata:
+  name: oai-e1-pool
+  namespace: default
+  labels:
+    nephio.org/purpose: cucp-cuup
+    nephio.org/network-type: e1
+    nephio.org/site: edge-cluster-1
+spec:
+  prefix: 10.2.1.0/24
+  networkInstance:
+    name: vpc-cucp-cuup
+  labels:
+    nephio.org/address-family: ipv4

@@ -1,0 +1,106 @@
+# WorkloadCluster Resource for OAI gNB Single-Node Deployment
+# Apply this to the Management Cluster
+
+---
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: edge-cluster-1
+  namespace: default
+  labels:
+    nephio.org/site: edge-cluster-1
+    nephio.org/region: us-west
+    nephio.org/cluster-type: edge
+    nephio.org/deployment: single-node
+spec:
+  # Name of the cluster as registered in kubeconfig
+  clusterName: edge-cluster-1
+  
+  # CNI types available in this cluster
+  cnis:
+  - macvlan      # For standard secondary interfaces
+  - sriov        # For high-performance interfaces (if SR-IOV NIC available)
+  
+  # Master interface for MacVLAN
+  # This is the primary physical NIC (ens3) used for N2 and N3
+  masterInterface: ens3
+  
+  # Additional network configuration
+  # This maps to your physical setup
+  networkInterfaces:
+  - name: ens3
+    purpose: primary
+    description: "Primary NIC for N2 and N3 interfaces"
+    cni: macvlan
+    vlans:
+    - 102  # N2 VLAN
+    - 103  # N3 VLAN
+  
+  - name: ens4
+    purpose: fronthaul
+    description: "Secondary NIC for RU/USRP connection"
+    cni: macvlan
+    mtu: 9000
+    vlans:
+    - 206  # RU VLAN (optional)
+
+---
+# Alternative: WorkloadCluster with SR-IOV Configuration
+# Use this version if you have SR-IOV capable NIC (Intel E810, ConnectX-6, etc.)
+
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: edge-cluster-1-sriov
+  namespace: default
+  labels:
+    nephio.org/site: edge-cluster-1
+    nephio.org/region: us-west
+    nephio.org/cluster-type: edge
+    nephio.org/deployment: single-node
+    nephio.org/sriov: enabled
+spec:
+  clusterName: edge-cluster-1
+  
+  cnis:
+  - sriov        # Primary for high performance
+  - macvlan      # Fallback for other interfaces
+  
+  masterInterface: ens3
+  
+  # SR-IOV specific configuration
+  sriovConfig:
+    enabled: true
+    physicalFunction: ens3
+    numVirtualFunctions: 4
+    vfDriver: iavf  # Intel VF driver (use mlx5_core for Mellanox)
+  
+  networkInterfaces:
+  - name: ens3
+    purpose: primary
+    description: "SR-IOV NIC for N2 and N3 with hardware acceleration"
+    cni: sriov
+    sriovEnabled: true
+    numVFs: 4
+    pfName: ens3
+  
+  - name: ens4
+    purpose: fronthaul
+    description: "Secondary NIC for RU/USRP connection"
+    cni: macvlan
+    mtu: 9000
+
+---
+# Minimal WorkloadCluster (Simplest Version)
+# Use this if you just want basic functionality without extra metadata
+
+apiVersion: infra.nephio.org/v1alpha1
+kind: WorkloadCluster
+metadata:
+  name: edge-cluster-1-minimal
+  namespace: default
+spec:
+  clusterName: edge-cluster-1
+  cnis:
+  - macvlan
+  masterInterface: ens3
