@@ -1,0 +1,488 @@
+# Complete OAI gNB Single-Node Deployment Guide
+
+## Prerequisites Checklist
+
+Before starting, ensure you have:
+
+✅ **Management Cluster**: Running Nephio
+✅ **Edge Cluster**: Single-node cluster (edge-cluster-1) with:
+   - Kubernetes v1.28+
+   - Multus CNI installed
+   - CNI plugins installed (/opt/cni/bin/)
+   - Physical NICs: ens3, ens4 (optional)
+✅ **Infrastructure Packages** (you mentioned you have):
+   - cluster-baseline
+   - addons
+   - multus
+
+## Deployment Steps
+
+### Phase 1: Setup Management Cluster
+
+#### Step 1.1: Register Nephio OAI Catalog
+
+```bash
+# Switch to management cluster context
+kubectl config use-context mgmt
+
+# Register the OAI RAN catalog repository
+kubectl apply -f - <<EOF
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: Repository
+metadata:
+  name: catalog-workloads-oai-ran
+  namespace: default
+spec:
+  description: Nephio catalog for OAI RAN workloads
+  type: git
+  content: Package
+  deployment: false
+  git:
+    repo: https://github.com/nephio-project/catalog.git
+    branch: main
+    directory: /workloads/oai
+EOF
+
+# Verify registration
+kubectl get repositories
+# Should show: catalog-workloads-oai-ran
+```
+
+#### Step 1.2: Create IP Pools
+
+```bash
+# Apply the IPPrefix resources
+kubectl apply -f oai-ipprefixes.yaml
+
+# Verify IP pools created
+kubectl get ipprefixes
+# Expected output:
+# NAME                   PREFIX          NETWORKINSTANCE
+# oai-control-pool       10.1.2.0/24     vpc-control
+# oai-userplane-pool     10.1.3.0/24     vpc-userplane
+# oai-fronthaul-pool     10.2.6.0/24     vpc-fronthaul
+```
+
+#### Step 1.3: Create WorkloadCluster Resource
+
+```bash
+# Apply the WorkloadCluster resource
+kubectl apply -f oai-workloadcluster.yaml
+
+# Verify
+kubectl get workloadclusters
+# Expected output:
+# NAME             CLUSTERNAME      AGE
+# edge-cluster-1   edge-cluster-1   10s
+```
+
+#### Step 1.4: Register Edge Cluster Repository
+
+```bash
+# If not already done, register your edge cluster's git repo
+kubectl apply -f - <<EOF
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: Repository
+metadata:
+  name: edge-cluster-1
+  namespace: default
+spec:
+  description: Edge cluster repository
+  type: git
+  content: Package
+  deployment: true  # This repo receives deployments
+  git:
+    repo: http://gitea.gitea.svc.cluster.local:3000/nephio/edge-cluster-1.git
+    branch: main
+    directory: /
+    secretRef:
+      name: gitea-secret
+EOF
+
+# Verify
+kubectl get repositories
+```
+
+### Phase 2: Deploy OAI Interface Package
+
+#### Step 2.1: Apply Your Interface Package
+
+```bash
+# The Interface package you created earlier
+# This should be in your upstream blueprint repository
+
+# If you created it as a local package, push it to a git repo
+# or apply it directly via kpt
+
+# Example: If it's in a local directory
+cd path/to/oai-gnb-monolithic-package
+kpt live init .
+kpt live apply .
+
+# OR: Create as PackageRevision in Porch
+porchctl rpkg init oai-gnb-blueprint \
+  --repository blueprints \
+  --workspace v1
+
+# Copy your Interface resources into it
+porchctl rpkg pull oai-gnb-blueprint-v1
+# Edit files
+porchctl rpkg push oai-gnb-blueprint-v1
+```
+
+#### Step 2.2: Verify Interface Package
+
+```bash
+# Check package exists
+kubectl get packagerevisions | grep oai-gnb
+
+# Check the content
+kubectl get packagerevision oai-gnb-blueprint-v1 -o yaml
+```
+
+### Phase 3: Deploy OAI Operator
+
+#### Step 3.1: Create PackageVariant for Operator
+
+```bash
+# Apply the operator PackageVariant
+kubectl apply -f - <<EOF
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oai-ran-operators-edge1
+  namespace: default
+spec:
+  upstream:
+    repo: catalog-workloads-oai-ran
+    package: oai-ran-operator
+    revision: main
+  downstream:
+    repo: edge-cluster-1
+    package: oai-ran-operators
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-cluster-1
+EOF
+
+# Watch package creation
+kubectl get packagerevisions -A --watch
+
+# Wait for package to appear in edge-cluster-1 repo
+kubectl get packagerevisions -n edge-cluster-1
+```
+
+#### Step 3.2: Approve Operator Package
+
+```bash
+# List packages
+kubectl get packagerevisions -n oai-ran-operators
+
+# Propose the package
+kpt alpha rpkg propose <package-revision-name> -n oai-ran-operators
+
+# Approve the package
+kpt alpha rpkg approve <package-revision-name> -n oai-ran-operators
+```
+
+#### Step 3.3: Verify Operator Deployment
+
+```bash
+# Switch to edge cluster context
+kubectl config use-context edge-cluster-1
+
+# Check operator pod
+kubectl get pods -n oai-ran-operators
+
+# Should see:
+# NAME                                READY   STATUS    RESTARTS   AGE
+# oai-ran-operator-xxxxxxxxxx-xxxxx   1/1     Running   0          2m
+
+# Check operator logs
+kubectl logs -n oai-ran-operators -l app=oai-ran-operator
+```
+
+### Phase 4: Deploy OAI gNB
+
+#### Step 4.1: Verify Available OAI Packages
+
+```bash
+# Back to management cluster
+kubectl config use-context mgmt
+
+# List available packages in OAI catalog
+kubectl get packagerevisions -A | grep oai
+
+# You should see packages like:
+# - oai-ran-operator
+# - pkg-example-cucp-bp
+# - pkg-example-cuup-bp
+# - pkg-example-du-bp
+```
+
+#### Step 4.2: Create PackageVariant for gNB
+
+```bash
+# For split CU/DU (most common in catalog):
+
+# Deploy CU-CP
+kubectl apply -f - <<EOF
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oai-cucp-edge1
+  namespace: default
+spec:
+  upstream:
+    repo: catalog-workloads-oai-ran
+    package: pkg-example-cucp-bp
+    revision: main
+  downstream:
+    repo: edge-cluster-1
+    package: oai-cucp-edge1
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-cluster-1
+EOF
+
+# Deploy DU
+kubectl apply -f - <<EOF
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oai-du-edge1
+  namespace: default
+spec:
+  upstream:
+    repo: catalog-workloads-oai-ran
+    package: pkg-example-du-bp
+    revision: main
+  downstream:
+    repo: edge-cluster-1
+    package: oai-du-edge1
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-cluster-1
+EOF
+
+# Watch package specialization
+kubectl get packagerevisions -A --watch
+```
+
+#### Step 4.3: Monitor Package Specialization
+
+```bash
+# Check package status
+kubectl get packagerevision oai-cucp-edge1-v1 -n oai-ran-cucp -o yaml | grep conditions -A 20
+
+# Should see conditions progressing:
+# - config.injection.WorkloadCluster.workload-cluster: True
+# - req.nephio.org.interface.n2: True
+# - req.nephio.org.interface.f1c: True
+# - ipam.nephio.org.ipclaim.n2: True
+# - ipam.nephio.org.ipclaim.f1c: True
+# - Ready: True
+```
+
+#### Step 4.4: Approve gNB Packages
+
+```bash
+# Once all conditions are True:
+
+# Propose packages
+kpt alpha rpkg propose oai-cucp-edge1-v1 -n oai-ran-cucp
+kpt alpha rpkg propose oai-du-edge1-v1 -n oai-ran-du
+
+# Approve packages
+kpt alpha rpkg approve oai-cucp-edge1-v1 -n oai-ran-cucp
+kpt alpha rpkg approve oai-du-edge1-v1 -n oai-ran-du
+```
+
+### Phase 5: Verify Deployment
+
+#### Step 5.1: Check NADs Created
+
+```bash
+# Switch to edge cluster
+kubectl config use-context edge-cluster-1
+
+# Check NADs
+kubectl get network-attachment-definitions -A
+
+# Should see NADs like:
+# NAMESPACE        NAME   AGE
+# oai-ran-cucp     n2     5m
+# oai-ran-cucp     f1c    5m
+# oai-ran-du       f1     5m
+# oai-ran-du       n3     5m
+# oai-ran-du       ru     5m
+
+# Inspect a NAD
+kubectl describe nad n2 -n oai-ran-cucp
+```
+
+#### Step 5.2: Check gNB Pods
+
+```bash
+# Check CU-CP pod
+kubectl get pods -n oai-ran-cucp
+
+# Check DU pod
+kubectl get pods -n oai-ran-du
+
+# Should see pods running:
+# NAME                   READY   STATUS    RESTARTS   AGE
+# oai-cucp-xxxxxxxxx     1/1     Running   0          3m
+# oai-du-xxxxxxxxx       1/1     Running   0          3m
+```
+
+#### Step 5.3: Verify Pod Interfaces
+
+```bash
+# Check CU-CP interfaces
+kubectl exec -it -n oai-ran-cucp <cucp-pod-name> -- ip addr
+
+# Should see:
+# eth0: Primary Calico interface
+# net1: N2 interface (10.1.2.x)
+# net2: F1-C interface (10.2.5.x)
+
+# Check DU interfaces
+kubectl exec -it -n oai-ran-du <du-pod-name> -- ip addr
+
+# Should see:
+# eth0: Primary Calico interface
+# net1: F1 interface (10.2.5.x)
+# net2: N3 interface (10.1.3.x)
+# net3: RU interface (10.2.6.x) - if configured
+```
+
+#### Step 5.4: Test Connectivity
+
+```bash
+# From CU-CP, test N2 to AMF
+kubectl exec -it -n oai-ran-cucp <cucp-pod-name> -- ping 10.1.2.10
+
+# From DU, test N3 to UPF
+kubectl exec -it -n oai-ran-du <du-pod-name> -- ping 10.1.3.3
+
+# Check gNB logs
+kubectl logs -n oai-ran-cucp <cucp-pod-name>
+kubectl logs -n oai-ran-du <du-pod-name>
+```
+
+## Files You Need to Apply
+
+### Summary of Files Created:
+
+1. **oai-ipprefixes.yaml** ✅ (Apply to mgmt cluster)
+2. **oai-workloadcluster.yaml** ✅ (Apply to mgmt cluster)
+3. **oai-packagevariants.yaml** ✅ (Apply to mgmt cluster)
+4. **oai-gnb-monolithic-package.yaml** ✅ (Your Interface package - already created)
+
+### Application Order:
+
+```bash
+# Management Cluster
+kubectl config use-context mgmt
+
+# 1. Register repository
+kubectl apply -f - <<EOF
+[Repository YAML from above]
+EOF
+
+# 2. Create IP pools
+kubectl apply -f oai-ipprefixes.yaml
+
+# 3. Create WorkloadCluster
+kubectl apply -f oai-workloadcluster.yaml
+
+# 4. Deploy operator
+kubectl apply -f oai-packagevariants.yaml
+# (Extract just the operator PackageVariant)
+
+# 5. Wait for operator to be running
+kubectl get pods -n oai-ran-operators --context edge-cluster-1 --watch
+
+# 6. Deploy gNB
+kubectl apply -f oai-packagevariants.yaml
+# (Extract the gNB PackageVariants)
+
+# 7. Monitor, approve, and verify
+```
+
+## Troubleshooting
+
+### Issue: PackageVariant Not Creating Package
+
+```bash
+# Check PackageVariant status
+kubectl get packagevariant oai-ran-operators-edge1 -o yaml
+
+# Check if upstream repo exists
+kubectl get repositories | grep catalog-workloads-oai-ran
+
+# Check Porch server logs
+kubectl logs -n porch-system -l app=porch-server
+```
+
+### Issue: IPClaim Not Getting IP
+
+```bash
+# Check IPPrefix pools exist
+kubectl get ipprefixes
+
+# Check IPAM controller
+kubectl logs -n nephio-system -l app=ipam-controller
+
+# Check IPClaim status
+kubectl get ipclaim <claim-name> -o yaml
+```
+
+### Issue: NADs Not Created
+
+```bash
+# Check if nad-fn ran
+kubectl get packagerevision <n> -o yaml | grep pipeline
+
+# Check if IPClaim has status populated
+kubectl get ipclaim <n> -o jsonpath='{.status}'
+
+# Manually check NAD content
+kubectl get nad <n> -o yaml
+```
+
+## Quick Reference Commands
+
+```bash
+# Watch everything
+watch kubectl get packagerevisions,packagevariants,ipprefixes,workloadclusters -A
+
+# Check readiness
+kubectl get packagerevision <n> -o jsonpath='{.status.conditions}' | jq .
+
+# Force reconciliation
+kubectl annotate packagevariant <n> reconcile=true --overwrite
+
+# View package content
+kubectl get packagerevision <n> -o yaml
+
+# Check pod status
+kubectl get pods -A -o wide | grep oai
+```
+
+## Success Indicators
+
+✅ All IPPrefixes created  
+✅ WorkloadCluster resource exists  
+✅ Repository registered  
+✅ Operator pod running in edge cluster  
+✅ gNB PackageRevisions show Ready=True  
+✅ NADs created in edge cluster  
+✅ gNB pods running with multiple interfaces  
+✅ Connectivity tests pass  
+
+You're now ready to connect to the 5G Core!

@@ -1,0 +1,172 @@
+# PackageVariant Resources for OAI gNB Deployment
+# These reference the online Nephio catalog repositories
+
+# IMPORTANT: Before applying these, ensure the catalog repositories are registered in Porch
+# kubectl get repositories
+
+---
+# Repository Registration (Apply this first if not already registered)
+# This registers the Nephio OAI RAN catalog
+
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: Repository
+metadata:
+  name: catalog-workloads-oai-ran
+  namespace: default
+spec:
+  description: Nephio catalog for OAI RAN workloads
+  type: git
+  content: Package
+  deployment: false
+  git:
+    repo: https://github.com/nephio-project/catalog.git
+    branch: main
+    directory: /workloads/oai
+    secretRef:
+      name: github-access-token  # Optional: only if repo is private
+
+---
+# PackageVariant #1: OAI RAN Operator
+# This deploys the operator that watches NFDeployment CRs
+
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oai-ran-operators-edge1
+  namespace: default
+  labels:
+    nephio.org/site: edge-cluster-1
+    nephio.org/package-type: operator
+spec:
+  # Upstream package from Nephio catalog
+  upstream:
+    repo: catalog-workloads-oai-ran
+    package: oai-ran-operator
+    revision: main
+  
+  # Downstream: where to deploy (your edge cluster repo)
+  downstream:
+    repo: edge-cluster-1  # Your edge cluster's git repo in Porch
+    package: oai-ran-operators
+  
+  # Adoption and deletion policies
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  # Injectors - provide cluster context
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-cluster-1
+
+---
+# PackageVariant #2: OAI gNB Monolithic Deployment
+# This creates the NFDeployment CR that triggers the operator
+
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oai-gnb-monolithic-edge1
+  namespace: default
+  labels:
+    nephio.org/site: edge-cluster-1
+    nephio.org/network-function: gnb
+    nephio.org/deployment-type: monolithic
+spec:
+  # Upstream package - you may need to check which package exists
+  # Options might be:
+  # - pkg-example-gnb-mono-bp (monolithic gNB)
+  # - pkg-example-cucp-bp (CU-CP for split)
+  # - pkg-example-cuup-bp (CU-UP for split)
+  # - pkg-example-du-bp (DU for split)
+  
+  upstream:
+    repo: catalog-workloads-oai-ran
+    package: pkg-example-cucp-bp  # ADJUST THIS - may need to verify actual package name
+    revision: main
+  
+  downstream:
+    repo: edge-cluster-1
+    package: oai-gnb-edge1
+  
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  
+  # Inject cluster context
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-cluster-1
+  
+  # Optional: Apply custom mutations
+  pipeline:
+    mutators:
+    # Set site-specific labels
+    - image: gcr.io/kpt-fn/set-labels:v0.2
+      configMap:
+        nephio.org/site: edge-cluster-1
+        nephio.org/region: us-west
+    
+    # Apply site-specific configuration
+    - image: gcr.io/kpt-fn/apply-setters:v0.2
+      configMap:
+        site-name: edge-cluster-1
+        cluster-name: edge-cluster-1
+
+---
+# NOTE: The exact package names in Nephio catalog may vary
+# You should verify the available packages by checking:
+# https://github.com/nephio-project/catalog/tree/main/workloads/oai
+
+# Available OAI packages typically include:
+# 1. oai-ran-operator - The operator itself
+# 2. pkg-example-cucp-bp - CU Control Plane
+# 3. pkg-example-cuup-bp - CU User Plane  
+# 4. pkg-example-du-bp - Distributed Unit
+
+# For monolithic gNB deployment, you may need to:
+# Option A: Use one of the existing packages (likely pkg-example-cucp-bp or pkg-example-du-bp)
+# Option B: Create your own monolithic package based on the examples
+# Option C: Deploy split architecture (CU + DU) instead
+
+---
+# ALTERNATIVE: If monolithic package doesn't exist, deploy as split CU+DU
+
+# PackageVariant for CU-CP
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oai-cucp-edge1
+  namespace: default
+spec:
+  upstream:
+    repo: catalog-workloads-oai-ran
+    package: pkg-example-cucp-bp
+    revision: main
+  downstream:
+    repo: edge-cluster-1
+    package: oai-cucp-edge1
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-cluster-1
+
+---
+# PackageVariant for DU
+apiVersion: porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oai-du-edge1
+  namespace: default
+spec:
+  upstream:
+    repo: catalog-workloads-oai-ran
+    package: pkg-example-du-bp
+    revision: main
+  downstream:
+    repo: edge-cluster-1
+    package: oai-du-edge1
+  injectors:
+  - name: workload-cluster
+    kind: WorkloadCluster
+    resourceName: edge-cluster-1
